@@ -16,8 +16,8 @@ type ScanCmd struct{}
 //all logic relating to it is not included in this file.
 
 var (
-	parser          = flags.NewNamedParser("srclib-json", flags.Default)
-	scanCmd ScanCmd = ScanCmd{}
+	parser  = flags.NewNamedParser("srclib-json", flags.Default)
+	scanCmd = ScanCmd{}
 )
 
 func init() {
@@ -32,11 +32,11 @@ func init() {
 
 }
 
-func main() {
-	if _, err := parser.Parse(); err != nil {
-		os.Exit(1)
-	}
-}
+// func main() {
+// 	if _, err := parser.Parse(); err != nil {
+// 		os.Exit(1)
+// 	}
+// }
 
 func isJSONFile(fileName string) bool {
 	return filepath.Ext(fileName) == ".json"
