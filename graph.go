@@ -1,30 +1,165 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
-	"sourcegraph.com/sourcegraph/srclib-json/myjson"
+	"sourcegraph.com/sourcegraph/srclib/graph"
+	"sourcegraph.com/sourcegraph/srclib/unit"
+
+	"github.com/ggilmore/srclib-json-tokenizer/myjson"
 )
 
-const testJSON = `{"name": "Geoffrey", "parents": ["Donna", "Henry"], "age": 22, "clothes": {"shirt": true, "pants": "true"} }`
+func init() {
+	_, err := parser.AddCommand("graph",
+		"graph a JSON file",
+		"graph a JSON file, producing all refs", &graphCmd)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
-func main() {
-	dec := myjson.NewDecoder(strings.NewReader(testJSON))
+type GraphCmd struct{}
+
+var graphCmd GraphCmd
+
+func (c *GraphCmd) Execute(args []string) error {
+	inputBytes, err := ioutil.ReadAll(os.Stdin)
+
+	if err != nil {
+		return err
+	}
+
+	var unit unit.SourceUnit
+
+	if err = json.Unmarshal(inputBytes, &unit); err != nil {
+		return err
+	}
+
+	out, err := doGraph(unit)
+
+	if err != nil {
+		return err
+	}
+
+	outBytes, err := json.MarshalIndent(out, "", "  ")
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stdout.Write(outBytes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func doGraph(u unit.SourceUnit) (*graph.Output, error) {
+
+	out := &graph.Output{}
+
+	for _, file := range u.Files {
+
+		fileBytes, err := ioutil.ReadFile(file)
+
+		if err != nil {
+			return nil, fmt.Errorf("Unable to load file: %s", err)
+		}
+
+		tokenInfos, err := TokenizeJSON(bytes.NewReader(fileBytes))
+
+		if err != nil {
+			return nil, fmt.Errorf("Unable to tokenize JSON in file %s, error: %s", file, err)
+		}
+
+		for _, info := range tokenInfos {
+
+			tokenString := string(fileBytes[info.Start:info.Endp])
+
+			out.Refs = append(out.Refs, &graph.Ref{
+				Start:       uint32(info.Start),
+				End:         uint32(info.Endp),
+				File:        filepath.Base(file),
+				Unit:        u.Name,
+				UnitType:    "json",
+				DefPath:     defPath(file, tokenString, info),
+				DefUnit:     u.Name, //not sure about this field
+				DefUnitType: "placeholder-type"})
+		}
+
+	}
+
+	return out, nil
+}
+
+//TokenizeJSON - given a reader "r" with a JSON object inside it, returns a slice of all
+//non-delimiter TokenInfos in the JSON
+func TokenizeJSON(r io.Reader) ([]myjson.TokenInfo, error) {
+	dec := myjson.NewDecoder(r)
+	dec.UseNumber()
+
+	var out []myjson.TokenInfo
 	for {
-		t, start, stop, path, err := dec.EndpToken()
+		info, err := dec.EndpToken()
 		if err == io.EOF {
 			break
 		}
 
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
-		fmt.Printf("%T: %v, start: %d, stop %d, path: %v", t, t, start, stop, path)
-		fmt.Printf("\n")
+		switch info.Token.(type) {
+		case myjson.Delim:
+			continue
 
+		case string:
+			//remove quotations
+			info.Start++
+			info.Endp--
+
+		}
+		out = append(out, info)
 	}
+	return out, nil
+
+}
+
+func sliceForString(bs []byte, i, j int) string {
+	return string(bs[i:j])
+}
+
+//looks like: ...[relativePath]/keyPath[0]/keyPath[1]/.../tokenString/token.(Type)/(isKey)
+func defPath(filePath, tokenString string, t myjson.TokenInfo) string {
+
+	fileName := strings.TrimSuffix(filePath, filepath.Ext(filePath))
+	elems := []string{fileName}
+
+	for _, key := range t.KeyPath {
+		elems = append(elems, key)
+	}
+
+	elems = append(elems, tokenString)
+	elems = append(elems, fmt.Sprintf("%T", t.Token))
+
+	if t.IsKey {
+		elems = append(elems, "is_key")
+	} else {
+		elems = append(elems, "not_key")
+	}
+
+	for i, elem := range elems {
+		elems[i] = strings.TrimSpace(elem)
+	}
+
+	return strings.Join(elems, "/")
+
 }

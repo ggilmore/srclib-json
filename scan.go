@@ -12,10 +12,10 @@ import (
 
 type ScanCmd struct{}
 
-//An external configuration file is not needed for JSON, and so
-//all logic relating to it is not included in this file.
+type srcFileConfig struct{}
 
 var (
+	config  = &srcFileConfig{}
 	parser  = flags.NewNamedParser("srclib-json", flags.Default)
 	scanCmd = ScanCmd{}
 )
@@ -32,17 +32,25 @@ func init() {
 
 }
 
-// func main() {
-// 	if _, err := parser.Parse(); err != nil {
-// 		os.Exit(1)
-// 	}
-// }
+func main() {
+	if _, err := parser.Parse(); err != nil {
+		os.Exit(1)
+	}
+}
 
 func isJSONFile(fileName string) bool {
 	return filepath.Ext(fileName) == ".json"
 }
 
+var isExcludedDir = map[string]bool{".git": true, ".hg": true, ".srclib-cache": true}
+
 func (c *ScanCmd) Execute(args []string) error {
+	if err := json.NewDecoder(os.Stdin).Decode(&config); err != nil {
+		return err
+	}
+	if err := os.Stdin.Close(); err != nil {
+		return err
+	}
 	cwd, err := os.Getwd()
 
 	if err != nil {
@@ -72,10 +80,17 @@ func (c *ScanCmd) Execute(args []string) error {
 }
 
 func scan(dir string) ([]*unit.SourceUnit, error) {
-	u := unit.SourceUnit{
+
+	key := unit.Key{
 		Name: filepath.Base(dir),
-		Type: "json",
-	}
+		Type: "json"}
+
+	info := unit.Info{}
+
+	u := unit.SourceUnit{
+		Key:  key,
+		Info: info}
+
 	units := []*unit.SourceUnit{&u}
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -84,6 +99,9 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 		}
 
 		if info.IsDir() {
+			if isExcludedDir[info.Name()] {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
@@ -92,7 +110,7 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 			if err != nil {
 				return err
 			}
-			u.Files = append(u.Files, filepath.ToSlash(relPath))
+			u.Info.Files = append(u.Info.Files, filepath.ToSlash(relPath))
 		}
 		return nil
 	})
