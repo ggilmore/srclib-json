@@ -14,7 +14,7 @@ import (
 	"sourcegraph.com/sourcegraph/srclib/graph"
 	"sourcegraph.com/sourcegraph/srclib/unit"
 
-	"github.com/ggilmore/srclib-json-tokenizer/myjson"
+	"github.com/ggilmore/srclib-json-tokenizer/sgjson"
 )
 
 func init() {
@@ -102,8 +102,8 @@ func doGraph(u unit.SourceUnit) (*graph.Output, error) {
 
 //TokenizeJSON - given a reader "r" with a JSON object inside it, returns a slice of all
 //non-delimiter TokenInfos in the JSON
-func TokenizeJSON(r io.Reader) ([]myjson.TokenInfo, error) {
-	dec := myjson.NewDecoder(r)
+func TokenizeJSON(r io.Reader) ([]sgjson.TokenInfo, error) {
+	dec := sgjson.NewDecoder(r)
 	dec.UseNumber()
 
 	tokens, err := dec.Tokenize()
@@ -112,11 +112,11 @@ func TokenizeJSON(r io.Reader) ([]myjson.TokenInfo, error) {
 		return nil, err
 	}
 
-	var out []myjson.TokenInfo
+	var out []sgjson.TokenInfo
 
 	for _, t := range tokens {
 		switch t.Token.(type) {
-		case myjson.Delim:
+		case sgjson.Delim:
 			continue
 
 		case string:
@@ -132,7 +132,7 @@ func TokenizeJSON(r io.Reader) ([]myjson.TokenInfo, error) {
 }
 
 //looks like: ...[relativePath]/keyPath[0]/keyPath[1]/.../tokenString/token.(Type)/(isKey)
-func defPath(filePath, tokenString string, t myjson.TokenInfo) string {
+func defPath(filePath, tokenString string, t sgjson.TokenInfo) string {
 
 	fileName := strings.TrimSuffix(filePath, filepath.Ext(filePath))
 	elems := []string{fileName}
