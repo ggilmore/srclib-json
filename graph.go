@@ -106,35 +106,29 @@ func TokenizeJSON(r io.Reader) ([]myjson.TokenInfo, error) {
 	dec := myjson.NewDecoder(r)
 	dec.UseNumber()
 
+	tokens, err := dec.Tokenize()
+
+	if err != nil {
+		return nil, err
+	}
+
 	var out []myjson.TokenInfo
-	for {
-		info, err := dec.EndpToken()
-		if err == io.EOF {
-			break
-		}
 
-		if err != nil {
-			return nil, err
-		}
-
-		switch info.Token.(type) {
+	for _, t := range tokens {
+		switch t.Token.(type) {
 		case myjson.Delim:
 			continue
 
 		case string:
 			//remove quotations
-			info.Start++
-			info.Endp--
-
+			t.Start++
+			t.Endp--
 		}
-		out = append(out, info)
+		out = append(out, t)
 	}
+
 	return out, nil
 
-}
-
-func sliceForString(bs []byte, i, j int) string {
-	return string(bs[i:j])
 }
 
 //looks like: ...[relativePath]/keyPath[0]/keyPath[1]/.../tokenString/token.(Type)/(isKey)

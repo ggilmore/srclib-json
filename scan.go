@@ -81,15 +81,10 @@ func (c *ScanCmd) Execute(args []string) error {
 
 func scan(dir string) ([]*unit.SourceUnit, error) {
 
-	key := unit.Key{
-		Name: filepath.Base(dir),
-		Type: "json"}
+	u := unit.SourceUnit{}
 
-	info := unit.Info{}
-
-	u := unit.SourceUnit{
-		Key:  key,
-		Info: info}
+	u.Key.Name = filepath.Base(dir)
+	u.Key.Type = "json"
 
 	units := []*unit.SourceUnit{&u}
 
@@ -110,7 +105,7 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 			if err != nil {
 				return err
 			}
-			u.Info.Files = append(u.Info.Files, filepath.ToSlash(relPath))
+			u.Files = append(u.Files, filepath.ToSlash(relPath))
 		}
 		return nil
 	})
