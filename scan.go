@@ -86,6 +86,8 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 	u.Key.Name = filepath.Base(dir)
 	u.Key.Type = "json"
 
+	u.Files = []string{}
+
 	units := []*unit.SourceUnit{&u}
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -113,5 +115,6 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return units, nil
 }
