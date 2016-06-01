@@ -3,7 +3,7 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "Wp+li9nWnWi5QgSKT7TpNBVvwqM=",
+			"checksumSHA1": "D389/OSo+NSSsMLSxiV9qEv52KM=",
 			"path": "github.com/ggilmore/srclib-json-tokenizer/sgjson",
 			"revision": "c5881a1054503fae7a1444fc855d066c405b1764",
 			"revisionTime": "2016-05-31T19:57:45Z"

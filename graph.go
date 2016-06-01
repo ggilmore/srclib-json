@@ -48,7 +48,6 @@ func (c *GraphCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
 	outBytes, err := json.MarshalIndent(out, "", "  ")
 
 	if err != nil {
@@ -58,7 +57,6 @@ func (c *GraphCmd) Execute(args []string) error {
 	if _, err := os.Stdout.Write(outBytes); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -73,9 +71,7 @@ func doGraph(u unit.SourceUnit) (*graph.Output, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Unable to load file: %s", err)
 		}
-
 		tokenInfos, err := TokenizeJSON(bytes.NewReader(fileBytes))
-
 		if err != nil {
 			return nil, fmt.Errorf("Unable to tokenize JSON in file %s, error: %s", file, err)
 		}
@@ -83,7 +79,6 @@ func doGraph(u unit.SourceUnit) (*graph.Output, error) {
 		for _, info := range tokenInfos {
 
 			tokenString := string(fileBytes[info.Start:info.Endp])
-
 			out.Refs = append(out.Refs, &graph.Ref{
 				Start:       uint32(info.Start),
 				End:         uint32(info.Endp),
@@ -96,16 +91,15 @@ func doGraph(u unit.SourceUnit) (*graph.Output, error) {
 		}
 
 	}
-
 	return out, nil
 }
 
 //TokenizeJSON - given a reader "r" with a JSON object inside it, returns a slice of all
 //non-delimiter TokenInfos in the JSON
 func TokenizeJSON(r io.Reader) ([]sgjson.TokenInfo, error) {
+
 	dec := sgjson.NewDecoder(r)
 	dec.UseNumber()
-
 	tokens, err := dec.Tokenize()
 
 	if err != nil {

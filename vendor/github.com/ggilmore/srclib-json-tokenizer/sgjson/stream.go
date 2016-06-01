@@ -392,8 +392,9 @@ func (dec *Decoder) token() (TokenInfo, error) {
 			if dec.tokenState != tokenObjectStart && dec.tokenState != tokenObjectComma {
 				return dec.endpTokenError(c)
 			}
-
-			dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
+			if len(dec.keyPath) > 0 {
+				dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
+			}
 			dec.scanp++
 			dec.tokenState = dec.tokenStack[len(dec.tokenStack)-1]
 			dec.tokenStack = dec.tokenStack[:len(dec.tokenStack)-1]
@@ -421,7 +422,10 @@ func (dec *Decoder) token() (TokenInfo, error) {
 				dec.scanp++
 				dec.tokenState = tokenObjectKey
 
-				dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
+				if len(dec.keyPath) > 0 {
+					dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
+
+				}
 
 				continue
 			}
