@@ -192,6 +192,10 @@ func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
 
+func isLineBreak(c byte) bool {
+	return c == '\n' || c == '\r'
+}
+
 // stateBeginValueOrEmpty is the state after reading `[`.
 func stateBeginValueOrEmpty(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {

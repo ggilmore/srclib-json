@@ -22,6 +22,7 @@ type Decoder struct {
 	tokenState int
 	tokenStack []int
 
+	lineCount     int      //what line of the file the decoder is currently processing
 	clearedBytes  int      //bytes removed from the buffer
 	objDepthLevel int      //how many objects the parser is currently "nested in"
 	keyPath       []string //path of keys traversed to get to current token
@@ -32,7 +33,7 @@ type Decoder struct {
 // The decoder introduces its own buffering and may
 // read data from r beyond the JSON values requested.
 func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{r: r}
+	return &Decoder{r: r, lineCount: 1}
 }
 
 // UseNumber causes the Decoder to unmarshal a number into an interface{} as a
@@ -329,9 +330,10 @@ func (dec *Decoder) genPath() []string {
 //TokenInfo - Return type for Token
 type TokenInfo struct {
 	Token   Token
+	Line    int      //line number for where this token occurred in the JSON object
 	Start   int      //starting byte offset for where this token occurred in the JSON object
 	Endp    int      //ending byte offset for where this token occurred in the JSON object
-	KeyPath []string //path of object traversed in order to reach this token
+	KeyPath []string //path of object keys that were traversed in order to reach this token
 	IsKey   bool     //true if this token is an object key
 }
 
@@ -353,6 +355,8 @@ func (dec *Decoder) token() (TokenInfo, error) {
 
 		c, err := dec.peek()
 		start := dec.BytesProcessed()
+		line := dec.lineCount
+
 		if err != nil {
 			return TokenInfo{}, err
 		}
@@ -360,53 +364,55 @@ func (dec *Decoder) token() (TokenInfo, error) {
 		switch c {
 		case '[':
 			if !dec.tokenValueAllowed() {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
 			dec.scanp++
 			dec.tokenStack = append(dec.tokenStack, dec.tokenState)
 			dec.tokenState = tokenArrayStart
-			return TokenInfo{Delim('['), start, dec.BytesProcessed(), dec.genPath(), false}, nil
+			return TokenInfo{Delim('['), line, start, dec.BytesProcessed(), dec.genPath(), false}, nil
 
 		case ']':
 			if dec.tokenState != tokenArrayStart && dec.tokenState != tokenArrayComma {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
 			dec.scanp++
 			dec.tokenState = dec.tokenStack[len(dec.tokenStack)-1]
 			dec.tokenStack = dec.tokenStack[:len(dec.tokenStack)-1]
 			dec.tokenValueEnd()
-			return TokenInfo{Delim(']'), start, dec.BytesProcessed(), dec.genPath(), false}, nil
+			return TokenInfo{Delim(']'), line, start, dec.BytesProcessed(), dec.genPath(), false}, nil
 
 		case '{':
 			if !dec.tokenValueAllowed() {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
 			dec.scanp++
 			dec.tokenStack = append(dec.tokenStack, dec.tokenState)
 			dec.tokenState = tokenObjectStart
 
 			dec.objDepthLevel++
-			return TokenInfo{Delim('{'), start, dec.BytesProcessed(), dec.genPath(), false}, nil
+			return TokenInfo{Delim('{'), line, start, dec.BytesProcessed(), dec.genPath(), false}, nil
 
 		case '}':
 			if dec.tokenState != tokenObjectStart && dec.tokenState != tokenObjectComma {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
-			if len(dec.keyPath) > 0 {
-				dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
-			}
+
 			dec.scanp++
 			dec.tokenState = dec.tokenStack[len(dec.tokenStack)-1]
 			dec.tokenStack = dec.tokenStack[:len(dec.tokenStack)-1]
 			dec.tokenValueEnd()
 
+			if len(dec.keyPath) > 0 {
+				dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
+			}
+
 			dec.objDepthLevel--
 
-			return TokenInfo{Delim('}'), start, dec.BytesProcessed(), dec.genPath(), false}, nil
+			return TokenInfo{Delim('}'), line, start, dec.BytesProcessed(), dec.genPath(), false}, nil
 
 		case ':':
 			if dec.tokenState != tokenObjectColon {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
 			dec.scanp++
 			dec.tokenState = tokenObjectValue
@@ -424,12 +430,11 @@ func (dec *Decoder) token() (TokenInfo, error) {
 
 				if len(dec.keyPath) > 0 {
 					dec.keyPath = dec.keyPath[:len(dec.keyPath)-1]
-
 				}
 
 				continue
 			}
-			return dec.endpTokenError(c)
+			return dec.tokenError(c)
 
 		case '"':
 			if dec.tokenState == tokenObjectStart || dec.tokenState == tokenObjectKey {
@@ -445,20 +450,20 @@ func (dec *Decoder) token() (TokenInfo, error) {
 				dec.tokenState = tokenObjectColon
 				outPath := dec.genPath()
 				dec.keyPath = append(dec.keyPath, x)
-				return TokenInfo{x, start, dec.BytesProcessed(), outPath, true}, nil
+				return TokenInfo{x, line, start, dec.BytesProcessed(), outPath, true}, nil
 			}
 			fallthrough
 
 		default:
 			if !dec.tokenValueAllowed() {
-				return dec.endpTokenError(c)
+				return dec.tokenError(c)
 			}
 			var x interface{}
 			if err := dec.decode(&x); err != nil {
 				clearOffset(err)
 				return TokenInfo{}, err
 			}
-			return TokenInfo{x, start, dec.BytesProcessed(), dec.genPath(), false}, nil
+			return TokenInfo{x, line, start, dec.BytesProcessed(), dec.genPath(), false}, nil
 		}
 	}
 }
@@ -486,12 +491,7 @@ func clearOffset(err error) {
 	}
 }
 
-func (dec *Decoder) endpTokenError(c byte) (TokenInfo, error) {
-	token, err := dec.tokenError(c)
-	return TokenInfo{Token: token}, err
-}
-
-func (dec *Decoder) tokenError(c byte) (Token, error) {
+func (dec *Decoder) tokenError(c byte) (TokenInfo, error) {
 	var context string
 	switch dec.tokenState {
 	case tokenTopValue:
@@ -507,7 +507,7 @@ func (dec *Decoder) tokenError(c byte) (Token, error) {
 	case tokenObjectComma:
 		context = " after object key:value pair"
 	}
-	return nil, &SyntaxError{"invalid character " + quoteChar(c) + " " + context, 0}
+	return TokenInfo{}, &SyntaxError{"invalid character " + quoteChar(c) + " " + context, 0}
 }
 
 // More reports whether there is another element in the
@@ -522,6 +522,9 @@ func (dec *Decoder) peek() (byte, error) {
 	for {
 		for i := dec.scanp; i < len(dec.buf); i++ {
 			c := dec.buf[i]
+			if isLineBreak(c) {
+				dec.lineCount++
+			}
 			if isSpace(c) {
 				continue
 			}
