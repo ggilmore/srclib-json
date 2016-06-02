@@ -82,11 +82,11 @@ func doGraph(u unit.SourceUnit) (*graph.Output, error) {
 			out.Refs = append(out.Refs, &graph.Ref{
 				Start:       uint32(info.Start),
 				End:         uint32(info.Endp),
-				File:        filepath.Base(file),
+				File:        file,
 				Unit:        u.Name,
 				UnitType:    "json",
 				DefPath:     defPath(file, tokenString, info),
-				DefUnit:     u.Name, //not sure about this field
+				DefUnit:     u.Name,
 				DefUnitType: "placeholder-type"})
 		}
 
@@ -135,7 +135,10 @@ func defPath(filePath, tokenString string, t sgjson.TokenInfo) string {
 		elems = append(elems, key)
 	}
 
-	elems = append(elems, tokenString)
+	//in case there is a slash in the token itself, so that it doesn't conflict with paths
+	escapedString := strings.Replace(tokenString, `/`, `\\/`, -1)
+
+	elems = append(elems, escapedString)
 	elems = append(elems, fmt.Sprintf("%T", t.Token))
 
 	if t.IsKey {
