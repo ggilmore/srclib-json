@@ -18,6 +18,10 @@ var (
 	config  = &srcFileConfig{}
 	parser  = flags.NewNamedParser("srclib-json", flags.Default)
 	scanCmd = ScanCmd{}
+
+	//filePredicates is a list of predicate functions that check to see if we can
+	//recognize / process a given JSON file
+	filePredicates = []func(s string) bool{}
 )
 
 func init() {
@@ -107,7 +111,10 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 			if err != nil {
 				return err
 			}
-			u.Files = append(u.Files, filepath.ToSlash(relPath))
+			if includeJSONFile(relPath) {
+				u.Files = append(u.Files, filepath.ToSlash(relPath))
+
+			}
 		}
 		return nil
 	})
@@ -117,4 +124,13 @@ func scan(dir string) ([]*unit.SourceUnit, error) {
 	}
 
 	return units, nil
+}
+
+func includeJSONFile(path string) bool {
+	for _, predicate := range filePredicates {
+		if predicate(path) {
+			return true
+		}
+	}
+	return false
 }
