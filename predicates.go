@@ -11,13 +11,15 @@ func npmPrecicate(path string) bool {
 }
 
 func typescriptPredicate(path string) bool {
-	dir, file := filepath.Split(path)
-	return file == "tsconfig.json" || file == "tslint.json" || (filepath.Base(dir) == "typings" && file == "typings.json")
+	file := filepath.Base(path)
+	_, recognized := map[string]bool{"tsconfig.json": true, "tslint.json": true, "typings.json": true}[file]
+	return recognized
 }
 
 func meteorPredicate(path string) bool {
 	file := filepath.Base(path)
-	return file == "settings.json"
+	_, recognized := map[string]bool{"settings.json": true, "versions.json": true}[file]
+	return recognized
 }
 
 func init() {
